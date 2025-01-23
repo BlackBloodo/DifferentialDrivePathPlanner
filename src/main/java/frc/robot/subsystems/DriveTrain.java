@@ -4,9 +4,6 @@
 
 package frc.robot.subsystems;
 
-import java.util.Vector;
-
-import org.opencv.core.Mat;
 
 import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
@@ -20,15 +17,12 @@ import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPLTVController;
 
-import edu.wpi.first.math.Matrix;
-import edu.wpi.first.math.Nat;
-import edu.wpi.first.math.Num;
+import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.DifferentialDriveKinematics;
 import edu.wpi.first.math.kinematics.DifferentialDriveOdometry;
 import edu.wpi.first.math.kinematics.DifferentialDriveWheelSpeeds;
-import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N2;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.wpilibj.DriverStation;
@@ -58,18 +52,8 @@ public class DriveTrain extends SubsystemBase {
   private double AngularAcceleracion = 0;
   private Field2d field2d;
 
-  // relems and quelems
-  private double[] arrayquelems = {0.1,0.125,5};
-
-  private double[] arrayrelems = {1,2};
-  
-  private N1 nat1;
-  private N2 nat2;
-  private N3 nat3;
-  private Matrix matrix_quelems = new Matrix<>(nat1, nat2, arrayquelems);
-  private Matrix matrix_r = new Matrix<>(nat1,nat2, arrayrelems);
-  private edu.wpi.first.math.Vector quelems = new edu.wpi.first.math.Vector<>(matrix_quelems);
-  private edu.wpi.first.math.Vector relems = new edu.wpi.first.math.Vector<>(matrix_r);
+  edu.wpi.first.math.Vector<N3> quelems = VecBuilder.fill(0.1, 0.225, 7);
+  edu.wpi.first.math.Vector<N2> relems = VecBuilder.fill(1, 2);
   //
 
   //Odometry
@@ -84,9 +68,6 @@ public class DriveTrain extends SubsystemBase {
       // Handle exception as needed
       e.printStackTrace();
     }
-    
-    matrix_quelems = new Matrix<>(nat1, nat3, arrayquelems);
-    matrix_r = new Matrix<>(nat1,nat2, arrayquelems);
     //Initialize Hardware
     m_leftLeader = new TalonFX(ChasisIds.k_leftTankDriveLeader);
     m_leftFollower = new TalonFX(ChasisIds.k_leftTankDriveFollower);
@@ -201,8 +182,8 @@ public class DriveTrain extends SubsystemBase {
 
   public void driveChassisSpeeds(ChassisSpeeds chassisSpeeds) {
     DifferentialDriveWheelSpeeds tankWheelSpeeds = m_kinematics.toWheelSpeeds(chassisSpeeds);
-    tankWheelSpeeds.desaturate(0.5);
-    tankDrive(tankWheelSpeeds.leftMetersPerSecond*0.7, tankWheelSpeeds.rightMetersPerSecond*0.7);  
+    tankWheelSpeeds.desaturate(0.8);
+    tankDrive(tankWheelSpeeds.leftMetersPerSecond*.75, tankWheelSpeeds.rightMetersPerSecond*.75);  
     /*Modo B
       final double leftFeedforward = m_feedforward.cal
     */
@@ -229,8 +210,6 @@ public class DriveTrain extends SubsystemBase {
   @Override
   public void periodic() {
    // This method will be called once per scheduler run
-   field2d.setRobotPose(getPose());
-   SmartDashboard.putData("Field", field2d);
     SmartDashboard.putNumber("Angle", m_gyro.getYaw().getValueAsDouble());
     m_odometry.update(m_gyro.getRotation2d(), PositionToMeters(m_leftLeader.getPosition().getValueAsDouble()), PositionToMeters(m_rightLeader.getPosition().getValueAsDouble()));
     SmartDashboard.putNumber("LeftPosition", m_leftLeader.getPosition().getValueAsDouble());
