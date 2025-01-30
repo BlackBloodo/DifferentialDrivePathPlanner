@@ -9,6 +9,7 @@ import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.controls.Follower;
+import com.ctre.phoenix6.controls.VelocityDutyCycle;
 import com.ctre.phoenix6.hardware.Pigeon2;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
@@ -16,8 +17,11 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPLTVController;
+import com.pathplanner.lib.util.DriveFeedforwards;
 
 import edu.wpi.first.math.VecBuilder;
+import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.controller.SimpleMotorFeedforward;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.DifferentialDriveKinematics;
@@ -26,7 +30,7 @@ import edu.wpi.first.math.kinematics.DifferentialDriveWheelSpeeds;
 import edu.wpi.first.math.numbers.N2;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.smartdashboard.Field2d;
+import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.ChasisIds;
@@ -46,18 +50,24 @@ public class DriveTrain extends SubsystemBase {
   private TalonFXConfiguration m_righConfiguration = new TalonFXConfiguration();
   private TalonFXConfiguration m_leftConfiguration = new TalonFXConfiguration();
   private CurrentLimitsConfigs m_currentConfig = new CurrentLimitsConfigs();
-  private final DutyCycleOut leftOut ;
+  private final DutyCycleOut leftOut;
   private final DutyCycleOut rightOut;
-  private double acceleracion = 0;
-  private double AngularAcceleracion = 0;
-  private Field2d field2d;
+  private final VelocityDutyCycle leftVelocityDutyCycle;
+  private final VelocityDutyCycle righVelocityDutyCycle;
+  private Encoder rightEncoder = new Encoder(1, 2);
+  private Encoder leftEncoder = new Encoder(3, 4);
+  
 
-  edu.wpi.first.math.Vector<N3> quelems = VecBuilder.fill(0.1, 0.225, 7);
+  edu.wpi.first.math.Vector<N3> quelems = VecBuilder.fill(0.25, 0.25, 8);
   edu.wpi.first.math.Vector<N2> relems = VecBuilder.fill(1, 2);
   //
 
   //Odometry
   private DifferentialDriveKinematics m_kinematics = new DifferentialDriveKinematics(0.546);
+  private SimpleMotorFeedforward m_feedforward = new SimpleMotorFeedforward(0.1395, 1.0281,0.12516);
+  private PIDController m_leftPIDController = new PIDController(1.0474, 0, 0);
+  private PIDController m_rightPIDController = new PIDController(1.0474, 0, 0);
+
   private DifferentialDriveOdometry m_odometry = new DifferentialDriveOdometry(m_gyro.getRotation2d(), 0, 0);
   private RobotConfig config;
 
@@ -79,14 +89,13 @@ public class DriveTrain extends SubsystemBase {
     m_currentConfig.StatorCurrentLimitEnable = true;
     m_currentConfig.StatorCurrentLimit = 140;
     m_currentConfig.SupplyCurrentLimitEnable = true;
-    m_currentConfig.SupplyCurrentLimit = 65;
+    m_currentConfig.SupplyCurrentLimit = 80;
 
     //Motor Configuration
     m_leftConfiguration.CurrentLimits = m_currentConfig;  
     m_leftConfiguration.MotorOutput.Inverted = InvertedValue.CounterClockwise_Positive;
     m_righConfiguration.CurrentLimits = m_currentConfig;
     m_righConfiguration.MotorOutput.Inverted = InvertedValue.Clockwise_Positive; 
-
     m_leftLeader.getConfigurator().apply(m_leftConfiguration);
     m_leftFollower.getConfigurator().apply(m_leftConfiguration);
     m_rightFollower.getConfigurator().apply(m_righConfiguration);
@@ -99,6 +108,8 @@ public class DriveTrain extends SubsystemBase {
 
     leftOut = new DutyCycleOut(0);
     rightOut = new DutyCycleOut(0);
+    leftVelocityDutyCycle = new VelocityDutyCycle(0);
+    righVelocityDutyCycle = new VelocityDutyCycle(0);
     
     /* Set up followers to follow leaders */    
     m_leftFollower.setControl(new Follower(m_leftLeader.getDeviceID(), false));
@@ -106,20 +117,21 @@ public class DriveTrain extends SubsystemBase {
 
     m_leftLeader.setSafetyEnabled(true);
     m_rightLeader.setSafetyEnabled(true);
+
+    leftEncoder.setDistancePerPulse(0.000005844466802);
+    rightEncoder.setDistancePerPulse(0.000005844466802);
     
 
     //Odometry and Path Planner
     resetPosition();
     m_odometry = new DifferentialDriveOdometry(m_gyro.getRotation2d(), PositionToMeters(m_leftLeader.getPosition().getValueAsDouble()), PositionToMeters(m_rightLeader.getPosition().getValueAsDouble()));
-    field2d = new Field2d();
-    field2d.setRobotPose(getPose());
 
      try{
     AutoBuilder.configure(
       this::getPose, 
       this::resetPose, 
       this::getChassisSpeeds, 
-      this::driveChassisSpeeds,
+      (speeds, feedforward) -> driveChassisSpeeds(speeds, feedforward),
       new PPLTVController(quelems, relems, 0.02),
       config,
       () -> {
@@ -141,21 +153,12 @@ public class DriveTrain extends SubsystemBase {
     double rot = y;
     leftOut.Output = fwd + rot;
     rightOut.Output = fwd - rot;
-    m_leftLeader.setControl(leftOut );
-    m_rightLeader.setControl(rightOut );
-    
-  }
-
-  public void tankDrive(double x, double y){
-    leftOut.Output = x;
-    rightOut.Output = y;
     m_leftLeader.setControl(leftOut);
     m_rightLeader.setControl(rightOut);
     m_leftLeader.feed();
     m_rightLeader.feed();
     m_rightFollower.feed();
     m_leftFollower.feed();
-
   }
 
   public static DriveTrain getInstance(){
@@ -180,13 +183,24 @@ public class DriveTrain extends SubsystemBase {
     
   }
 
-  public void driveChassisSpeeds(ChassisSpeeds chassisSpeeds) {
-    DifferentialDriveWheelSpeeds tankWheelSpeeds = m_kinematics.toWheelSpeeds(chassisSpeeds);
-    tankWheelSpeeds.desaturate(0.8);
-    tankDrive(tankWheelSpeeds.leftMetersPerSecond*.75, tankWheelSpeeds.rightMetersPerSecond*.75);  
-    /*Modo B
-      final double leftFeedforward = m_feedforward.cal
-    */
+  public void driveChassisSpeeds(ChassisSpeeds chassisSpeeds, DriveFeedforwards feedforwards) {
+    DifferentialDriveWheelSpeeds speeds = m_kinematics.toWheelSpeeds(chassisSpeeds);
+    final double leftFeedforward = m_feedforward.calculate(speeds.leftMetersPerSecond);
+    final double rightFeedforward = m_feedforward.calculate(speeds.rightMetersPerSecond);
+
+    final double leftOutput =
+        m_leftPIDController.calculate(VelocidadaMetros(m_leftLeader.getVelocity().getValueAsDouble()), speeds.leftMetersPerSecond);
+    final double rightOutput =
+        m_rightPIDController.calculate(VelocidadaMetros(m_rightLeader.getVelocity().getValueAsDouble()), speeds.rightMetersPerSecond);
+    m_leftLeader.setVoltage(leftOutput + leftFeedforward);
+    m_rightLeader.setVoltage(rightOutput + rightFeedforward);
+    
+    /*leftVelocityDutyCycle.Velocity = VelocidadaMetros(speeds.leftMetersPerSecond);
+    righVelocityDutyCycle.Velocity = VelocidadaMetros(speeds.rightMetersPerSecond);
+    //righVelocityDutyCycle.Acceleration = (feedforwards.accelerationsMPSSq()[1]) / 0.0762 * 8.45;
+    //leftVelocityDutyCycle.Acceleration = (feedforwards.accelerationsMPSSq()[0]) / 0.0762 * 8.45;
+    m_leftLeader.setControl(leftVelocityDutyCycle);
+    m_rightLeader.setControl(righVelocityDutyCycle);*/
   }
 
   //Odometry Functions
@@ -198,6 +212,11 @@ public class DriveTrain extends SubsystemBase {
   public double VelocidadaMetros(double Velocidad){
     Velocidad *= chasisMeasurments.rotationVelocityToUnits;
     return Velocidad;
+  }
+
+  public double MetrosAVelocidad(double metros){
+    metros *= chasisMeasurments.metrosToVelocity;
+    return metros;
   }
 
   public void resetPosition(){
@@ -217,14 +236,5 @@ public class DriveTrain extends SubsystemBase {
     SmartDashboard.putNumber("X", m_odometry.getPoseMeters().getX());
     SmartDashboard.putNumber("Y", m_odometry.getPoseMeters().getY());
     SmartDashboard.putNumber("Velocidad", VelocidadaMetros(m_leftFollower.getVelocity().getValueAsDouble()));
-    SmartDashboard.putNumber("Acceleracion", acceleracion);
-    SmartDashboard.putNumber("Angular", AngularAcceleracion);
-    if (AngularAcceleracion < m_gyro.getAngularVelocityYWorld().getValueAsDouble()) {
-      acceleracion = m_gyro.getAngularVelocityYWorld().getValueAsDouble();
-    }
-    if (acceleracion < m_gyro.getAccelerationX().getValueAsDouble()) {
-      acceleracion = m_gyro.getAccelerationX().getValueAsDouble();
-      
-    }
   }
 }

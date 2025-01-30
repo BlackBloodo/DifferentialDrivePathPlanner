@@ -7,18 +7,6 @@
         {
           "type": "path",
           "data": {
-            "pathName": "Path1"
-          }
-        },
-        {
-          "type": "path",
-          "data": {
-            "pathName": "Path3"
-          }
-        },
-        {
-          "type": "path",
-          "data": {
             "pathName": "1Meter"
           }
         }

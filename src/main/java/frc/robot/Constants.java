@@ -28,7 +28,8 @@ public final class Constants {
   public static class chasisMeasurments {
     public static final double wheelRaidusMeters = 0.0762;
     public static final double gearRatio = 8.45;
-    public static final double rotationVelocityToUnits = (3.14159265 *4 * wheelRaidusMeters / gearRatio);
+    public static final double rotationVelocityToUnits = (3.14159265 *2 * wheelRaidusMeters / gearRatio);
+    public static final double metrosToVelocity = (gearRatio / (3.14159265 * 2 * gearRatio));
   }
 
  
