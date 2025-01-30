@@ -54,8 +54,8 @@ public class DriveTrain extends SubsystemBase {
   private final DutyCycleOut rightOut;
   private final VelocityDutyCycle leftVelocityDutyCycle;
   private final VelocityDutyCycle righVelocityDutyCycle;
-  private Encoder rightEncoder = new Encoder(1, 2);
-  private Encoder leftEncoder = new Encoder(3, 4);
+  private Encoder m_rightEncoder = new Encoder(1, 2);
+  private Encoder m_leftEncoder = new Encoder(3, 4);
   
 
   edu.wpi.first.math.Vector<N3> quelems = VecBuilder.fill(0.25, 0.25, 8);
@@ -118,13 +118,23 @@ public class DriveTrain extends SubsystemBase {
     m_leftLeader.setSafetyEnabled(true);
     m_rightLeader.setSafetyEnabled(true);
 
-    leftEncoder.setDistancePerPulse(0.000005844466802);
-    rightEncoder.setDistancePerPulse(0.000005844466802);
     
+
+    //Encoder setup
+    m_rightEncoder.setDistancePerPulse(chasisMeasurments.encoderDistancePerPulse);
+    m_leftEncoder.setDistancePerPulse(chasisMeasurments.encoderDistancePerPulse);
+
+    m_rightEncoder.setReverseDirection(false);  
+    m_leftEncoder.setReverseDirection(true);  
+
+
+
+
+
 
     //Odometry and Path Planner
     resetPosition();
-    m_odometry = new DifferentialDriveOdometry(m_gyro.getRotation2d(), PositionToMeters(m_leftLeader.getPosition().getValueAsDouble()), PositionToMeters(m_rightLeader.getPosition().getValueAsDouble()));
+    m_odometry = new DifferentialDriveOdometry(m_gyro.getRotation2d(), m_leftEncoder.getDistance(), m_rightEncoder.getDistance());
 
      try{
     AutoBuilder.configure(
@@ -174,11 +184,18 @@ public class DriveTrain extends SubsystemBase {
   }
 
   public void resetPose(Pose2d newPose) {
-    m_odometry.resetPosition(m_gyro.getRotation2d(), PositionToMeters(m_leftLeader.getPosition().getValueAsDouble()), PositionToMeters(m_rightLeader.getPosition().getValueAsDouble()), newPose);
+    m_odometry.resetPosition(m_gyro.getRotation2d(), m_leftEncoder.getDistance(), m_rightEncoder.getDistance(), newPose);
+  }
+
+  public double getDistance(){
+    // Return the process variable measurement here...
+    double leftDistance = m_leftEncoder.getDistance();
+    double rightDistance = m_rightEncoder.getDistance();
+    return (leftDistance + rightDistance) / 2;
   }
 
   public ChassisSpeeds getChassisSpeeds(){
-    var wheelSpeeds = new DifferentialDriveWheelSpeeds(VelocidadaMetros(m_leftLeader.getVelocity().getValueAsDouble()), VelocidadaMetros(m_rightLeader.getVelocity().getValueAsDouble()));
+    var wheelSpeeds = new DifferentialDriveWheelSpeeds(m_leftEncoder.getRate(), m_rightEncoder.getRate());
     return m_kinematics.toChassisSpeeds(wheelSpeeds);  
     
   }
@@ -189,9 +206,9 @@ public class DriveTrain extends SubsystemBase {
     final double rightFeedforward = m_feedforward.calculate(speeds.rightMetersPerSecond);
 
     final double leftOutput =
-        m_leftPIDController.calculate(VelocidadaMetros(m_leftLeader.getVelocity().getValueAsDouble()), speeds.leftMetersPerSecond);
+        m_leftPIDController.calculate(m_leftEncoder.getRate(), speeds.leftMetersPerSecond);
     final double rightOutput =
-        m_rightPIDController.calculate(VelocidadaMetros(m_rightLeader.getVelocity().getValueAsDouble()), speeds.rightMetersPerSecond);
+        m_rightPIDController.calculate(m_rightEncoder.getRate(), speeds.rightMetersPerSecond);
     m_leftLeader.setVoltage(leftOutput + leftFeedforward);
     m_rightLeader.setVoltage(rightOutput + rightFeedforward);
     
@@ -230,11 +247,11 @@ public class DriveTrain extends SubsystemBase {
   public void periodic() {
    // This method will be called once per scheduler run
     SmartDashboard.putNumber("Angle", m_gyro.getYaw().getValueAsDouble());
-    m_odometry.update(m_gyro.getRotation2d(), PositionToMeters(m_leftLeader.getPosition().getValueAsDouble()), PositionToMeters(m_rightLeader.getPosition().getValueAsDouble()));
-    SmartDashboard.putNumber("LeftPosition", m_leftLeader.getPosition().getValueAsDouble());
-    SmartDashboard.putNumber("RightPosition", m_rightLeader.getPosition().getValueAsDouble());
+    m_odometry.update(m_gyro.getRotation2d(), m_leftEncoder.getDistance(), m_rightEncoder.getDistance());
+    SmartDashboard.putNumber("LeftPosition", m_leftEncoder.getDistance());
+    SmartDashboard.putNumber("RightPosition", m_rightEncoder.getDistance());
     SmartDashboard.putNumber("X", m_odometry.getPoseMeters().getX());
     SmartDashboard.putNumber("Y", m_odometry.getPoseMeters().getY());
-    SmartDashboard.putNumber("Velocidad", VelocidadaMetros(m_leftFollower.getVelocity().getValueAsDouble()));
+    SmartDashboard.putNumber("Velocidad", m_leftEncoder.getRate());
   }
 }

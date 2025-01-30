@@ -4,6 +4,8 @@
 
 package frc.robot;
 
+import edu.wpi.first.math.util.Units;
+
 /**
  * The Constants class provides a convenient place for teams to hold robot-wide numerical or boolean
  * constants. This class should not be used for any other purpose. All constants should be declared
@@ -25,7 +27,14 @@ public final class Constants {
     public static final int k_pygeon = 13;
   }
 
+
   public static class chasisMeasurments {
+
+    public static final double encoderCPR = 2048;
+    public static final double wheelDiameterMeters = Units.inchesToMeters(6);
+    public static final double encoderDistancePerPulse = (Math.PI * wheelDiameterMeters) / encoderCPR;
+
+    
     public static final double wheelRaidusMeters = 0.0762;
     public static final double gearRatio = 8.45;
     public static final double rotationVelocityToUnits = (3.14159265 *2 * wheelRaidusMeters / gearRatio);
