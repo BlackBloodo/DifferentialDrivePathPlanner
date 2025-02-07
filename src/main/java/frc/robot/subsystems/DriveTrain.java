@@ -1,23 +1,27 @@
 // Copyright (c) FIRST and other WPILib contributors.
 // Open Source Software; you can modify and/or share it under the terms of
 // the WPILib BSD license file in the root directory of this project.
-
 package frc.robot.subsystems;
 
+import static edu.wpi.first.units.Units.Volt;
 
+import java.util.Collection;
+
+import com.ctre.phoenix6.Orchestra;
 import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.controls.Follower;
-import com.ctre.phoenix6.controls.VelocityDutyCycle;
+import com.ctre.phoenix6.controls.VoltageOut;
+import com.ctre.phoenix6.hardware.ParentDevice;
 import com.ctre.phoenix6.hardware.Pigeon2;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.auto.NamedCommands;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPLTVController;
-import com.pathplanner.lib.util.DriveFeedforwards;
 
 import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.controller.PIDController;
@@ -31,8 +35,11 @@ import edu.wpi.first.math.numbers.N2;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Encoder;
+import edu.wpi.first.wpilibj.GenericHID.RumbleType;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.Constants.ChasisIds;
 import frc.robot.Constants.chasisMeasurments;
 
@@ -45,33 +52,45 @@ public class DriveTrain extends SubsystemBase {
   private TalonFX m_rightLeader;
   private TalonFX m_rightFollower;
   private Pigeon2 m_gyro = new Pigeon2(13);
-
+  private Orchestra musics = new Orchestra();
+  private double Volts = 0;
+  
   //Configurators
-  private TalonFXConfiguration m_righConfiguration = new TalonFXConfiguration();
+  private TalonFXConfiguration m_rightConfiguration = new TalonFXConfiguration();
   private TalonFXConfiguration m_leftConfiguration = new TalonFXConfiguration();
   private CurrentLimitsConfigs m_currentConfig = new CurrentLimitsConfigs();
   private final DutyCycleOut leftOut;
   private final DutyCycleOut rightOut;
-  private final VelocityDutyCycle leftVelocityDutyCycle;
-  private final VelocityDutyCycle righVelocityDutyCycle;
+  
+  private final VoltageOut m_voltReq = new VoltageOut(0.0);
   private Encoder m_rightEncoder = new Encoder(1, 2);
   private Encoder m_leftEncoder = new Encoder(3, 4);
   
 
-  edu.wpi.first.math.Vector<N3> quelems = VecBuilder.fill(0.25, 0.25, 8);
+  edu.wpi.first.math.Vector<N3> quelems = VecBuilder.fill(0.125, 0.125, 3);
   edu.wpi.first.math.Vector<N2> relems = VecBuilder.fill(1, 2);
   //
 
-  //Odometry
-  private DifferentialDriveKinematics m_kinematics = new DifferentialDriveKinematics(0.546);
-  private SimpleMotorFeedforward m_feedforward = new SimpleMotorFeedforward(0.1395, 1.0281,0.12516);
-  private PIDController m_leftPIDController = new PIDController(1.0474, 0, 0);
-  private PIDController m_rightPIDController = new PIDController(1.0474, 0, 0);
+  //Odometray
+  private DifferentialDriveKinematics m_kinematics = new DifferentialDriveKinematics(0.525);
+  private SimpleMotorFeedforward feedforward = new SimpleMotorFeedforward(0.1392, 1.0281,0.12516);//, 0.3868);
+  private PIDController LeftPIDController = new PIDController(1.0474, 0, 0);
+  private PIDController righController = new PIDController(1.0474, 0, 0);
 
+  //0.12035
+  //0.1632
+ /* private SimpleMotorFeedforward feedforward = new SimpleMotorFeedforward(0.028061, 1.5,0.30931,0.005);//, 0.3868);
+  private PIDController LeftPIDController = new PIDController(0.3503, 0, 0,0.005);
+  private PIDController righController = new PIDController(0.3503, 0, 0,0.005);
+ 
+
+  */
   private DifferentialDriveOdometry m_odometry = new DifferentialDriveOdometry(m_gyro.getRotation2d(), 0, 0);
   private RobotConfig config;
 
   public DriveTrain() {
+    
+    
     try{
       config = RobotConfig.fromGUISettings();
     } catch (Exception e) {
@@ -85,21 +104,31 @@ public class DriveTrain extends SubsystemBase {
     m_rightFollower = new TalonFX(ChasisIds.k_rightTankDriveFollower);
     m_gyro = new Pigeon2(ChasisIds.k_pygeon);
 
+    
+
+    musics.addInstrument(m_leftFollower,0);
+    musics.addInstrument(m_rightFollower,1);
+    musics.addInstrument(m_leftLeader,1);
+    musics.addInstrument(m_rightLeader,2);
+    var status = musics.loadMusic("outputkirby1.chrp");
+    
+
     //Current Limit Configuration
     m_currentConfig.StatorCurrentLimitEnable = true;
     m_currentConfig.StatorCurrentLimit = 140;
     m_currentConfig.SupplyCurrentLimitEnable = true;
-    m_currentConfig.SupplyCurrentLimit = 80;
+    m_currentConfig.SupplyCurrentLimit = 85;
 
     //Motor Configuration
     m_leftConfiguration.CurrentLimits = m_currentConfig;  
     m_leftConfiguration.MotorOutput.Inverted = InvertedValue.CounterClockwise_Positive;
-    m_righConfiguration.CurrentLimits = m_currentConfig;
-    m_righConfiguration.MotorOutput.Inverted = InvertedValue.Clockwise_Positive; 
+    m_rightConfiguration.CurrentLimits = m_currentConfig;
+    m_rightConfiguration.MotorOutput.Inverted = InvertedValue.Clockwise_Positive; 
     m_leftLeader.getConfigurator().apply(m_leftConfiguration);
     m_leftFollower.getConfigurator().apply(m_leftConfiguration);
-    m_rightFollower.getConfigurator().apply(m_righConfiguration);
-    m_rightFollower.getConfigurator().apply(m_righConfiguration);
+    m_rightFollower.getConfigurator().apply(m_rightConfiguration);
+    m_rightFollower.getConfigurator().apply(m_rightConfiguration);
+    
 
     m_leftLeader.setNeutralMode(NeutralModeValue.Brake);
     m_leftFollower.setNeutralMode(NeutralModeValue.Brake);
@@ -108,8 +137,6 @@ public class DriveTrain extends SubsystemBase {
 
     leftOut = new DutyCycleOut(0);
     rightOut = new DutyCycleOut(0);
-    leftVelocityDutyCycle = new VelocityDutyCycle(0);
-    righVelocityDutyCycle = new VelocityDutyCycle(0);
     
     /* Set up followers to follow leaders */    
     m_leftFollower.setControl(new Follower(m_leftLeader.getDeviceID(), false));
@@ -128,10 +155,6 @@ public class DriveTrain extends SubsystemBase {
     m_leftEncoder.setReverseDirection(true);  
 
 
-
-
-
-
     //Odometry and Path Planner
     resetPosition();
     m_odometry = new DifferentialDriveOdometry(m_gyro.getRotation2d(), m_leftEncoder.getDistance(), m_rightEncoder.getDistance());
@@ -141,8 +164,8 @@ public class DriveTrain extends SubsystemBase {
       this::getPose, 
       this::resetPose, 
       this::getChassisSpeeds, 
-      (speeds, feedforward) -> driveChassisSpeeds(speeds, feedforward),
-      new PPLTVController(quelems, relems, 0.02),
+      this::driveChassisSpeeds,
+      new PPLTVController(0.02,4.8),
       config,
       () -> {
         var alliance = DriverStation.getAlliance();
@@ -181,6 +204,7 @@ public class DriveTrain extends SubsystemBase {
   //Path Planner Functions
   public Pose2d getPose(){
     return m_odometry.getPoseMeters();
+    
   }
 
   public void resetPose(Pose2d newPose) {
@@ -200,24 +224,24 @@ public class DriveTrain extends SubsystemBase {
     
   }
 
-  public void driveChassisSpeeds(ChassisSpeeds chassisSpeeds, DriveFeedforwards feedforwards) {
+  public void driveChassisSpeeds(ChassisSpeeds chassisSpeeds) {
+    
     DifferentialDriveWheelSpeeds speeds = m_kinematics.toWheelSpeeds(chassisSpeeds);
-    final double leftFeedforward = m_feedforward.calculate(speeds.leftMetersPerSecond);
-    final double rightFeedforward = m_feedforward.calculate(speeds.rightMetersPerSecond);
+    
+    final double leftFeedforward = feedforward.calculate(speeds.leftMetersPerSecond);
+    final double rightFeedforward = feedforward.calculate(speeds.rightMetersPerSecond);
+
 
     final double leftOutput =
-        m_leftPIDController.calculate(m_leftEncoder.getRate(), speeds.leftMetersPerSecond);
+        LeftPIDController.calculate(m_leftEncoder.getRate(), speeds.leftMetersPerSecond);
     final double rightOutput =
-        m_rightPIDController.calculate(m_rightEncoder.getRate(), speeds.rightMetersPerSecond);
-    m_leftLeader.setVoltage(leftOutput + leftFeedforward);
-    m_rightLeader.setVoltage(rightOutput + rightFeedforward);
-    
-    /*leftVelocityDutyCycle.Velocity = VelocidadaMetros(speeds.leftMetersPerSecond);
-    righVelocityDutyCycle.Velocity = VelocidadaMetros(speeds.rightMetersPerSecond);
-    //righVelocityDutyCycle.Acceleration = (feedforwards.accelerationsMPSSq()[1]) / 0.0762 * 8.45;
-    //leftVelocityDutyCycle.Acceleration = (feedforwards.accelerationsMPSSq()[0]) / 0.0762 * 8.45;
-    m_leftLeader.setControl(leftVelocityDutyCycle);
-    m_rightLeader.setControl(righVelocityDutyCycle);*/
+        righController.calculate(m_rightEncoder.getRate(), speeds.rightMetersPerSecond);
+    final VoltageOut leftvoltage = new VoltageOut(leftOutput + leftFeedforward);
+    final VoltageOut righVoltage = new VoltageOut(rightOutput + rightFeedforward);
+    m_leftLeader.setControl(leftvoltage);
+    m_rightLeader.setControl(righVoltage);
+    //m_leftLeader.setVoltage(leftOutput + leftFeedforward);
+    //m_rightLeader.setVoltage(rightOutput + rightFeedforward);
   }
 
   //Odometry Functions
@@ -243,6 +267,40 @@ public class DriveTrain extends SubsystemBase {
     m_gyro.reset();
   }
 
+  public Command rumbleControl(CommandXboxController controller){
+    return runEnd(
+        () -> {
+          controller.setRumble(RumbleType.kBothRumble, 0.5);
+          musics.play();
+        
+        },
+        () -> {
+          controller.setRumble(RumbleType.kBothRumble, 0);
+          musics.stop();
+        });
+  }
+
+  public void meterRumble(CommandXboxController control){
+    while (getDistance() > 4 && getDistance() < 5) {
+      control.setRumble(RumbleType.kBothRumble, 0.5);
+    }
+  }
+
+  public Command Play(){
+    return runOnce(
+        () -> {
+          musics.play();
+        });
+  }
+    
+  public Command stop(){
+    return run(
+        () -> {
+          musics.stop();
+        });
+  }
+  
+
   @Override
   public void periodic() {
    // This method will be called once per scheduler run
@@ -253,5 +311,6 @@ public class DriveTrain extends SubsystemBase {
     SmartDashboard.putNumber("X", m_odometry.getPoseMeters().getX());
     SmartDashboard.putNumber("Y", m_odometry.getPoseMeters().getY());
     SmartDashboard.putNumber("Velocidad", m_leftEncoder.getRate());
+    SmartDashboard.putNumber("VOlts", m_leftLeader.getMotorVoltage().getValueAsDouble());
   }
 }

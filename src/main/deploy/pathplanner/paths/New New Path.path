@@ -3,25 +3,25 @@
   "waypoints": [
     {
       "anchor": {
-        "x": 8.067725409836065,
-        "y": 6.212756147540984
+        "x": 9.0,
+        "y": 5.0
       },
       "prevControl": null,
       "nextControl": {
-        "x": 8.619159836065572,
-        "y": 6.308657786885245
+        "x": 10.0,
+        "y": 5.0
       },
       "isLocked": false,
-      "linkedName": null
+      "linkedName": "Curva"
     },
     {
       "anchor": {
-        "x": 5.38247950819672,
-        "y": 5.193801229508197
+        "x": 12.0,
+        "y": 6.0
       },
       "prevControl": {
-        "x": 5.502356557377048,
-        "y": 5.457530737704917
+        "x": 11.0,
+        "y": 6.0
       },
       "nextControl": null,
       "isLocked": false,
@@ -33,21 +33,21 @@
   "pointTowardsZones": [],
   "eventMarkers": [],
   "globalConstraints": {
-    "maxVelocity": 9.3,
-    "maxAcceleration": 3.3,
-    "maxAngularVelocity": 1445.0,
-    "maxAngularAcceleration": 1445.0,
-    "nominalVoltage": 12.0,
+    "maxVelocity": 3.0,
+    "maxAcceleration": 3.0,
+    "maxAngularVelocity": 540.0,
+    "maxAngularAcceleration": 720.0,
+    "nominalVoltage": 7.0,
     "unlimited": false
   },
   "goalEndState": {
-    "velocity": 0,
-    "rotation": 24.63318785955532
+    "velocity": 0.0,
+    "rotation": 0.0
   },
   "reversed": false,
   "folder": null,
   "idealStartingState": {
-    "velocity": 0,
+    "velocity": 1.0,
     "rotation": 0.0
   },
   "useDefaultConstraints": true

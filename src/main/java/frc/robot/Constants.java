@@ -32,7 +32,7 @@ public final class Constants {
 
     public static final double encoderCPR = 2048;
     public static final double wheelDiameterMeters = Units.inchesToMeters(6);
-    public static final double encoderDistancePerPulse = (Math.PI * wheelDiameterMeters) / encoderCPR;
+    public static final double encoderDistancePerPulse = -(Math.PI * wheelDiameterMeters) / encoderCPR;
 
     
     public static final double wheelRaidusMeters = 0.0762;
