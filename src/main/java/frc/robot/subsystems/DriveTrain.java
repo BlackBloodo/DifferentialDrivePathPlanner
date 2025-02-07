@@ -226,20 +226,21 @@ public class DriveTrain extends SubsystemBase {
 
   public void driveChassisSpeeds(ChassisSpeeds chassisSpeeds) {
     
-    DifferentialDriveWheelSpeeds speeds = m_kinematics.toWheelSpeeds(chassisSpeeds);
     
+    DifferentialDriveWheelSpeeds speeds = m_kinematics.toWheelSpeeds(chassisSpeeds);
     final double leftFeedforward = feedforward.calculate(speeds.leftMetersPerSecond);
     final double rightFeedforward = feedforward.calculate(speeds.rightMetersPerSecond);
 
-
     final double leftOutput =
-        LeftPIDController.calculate(m_leftEncoder.getRate(), speeds.leftMetersPerSecond);
+      LeftPIDController.calculate(m_leftEncoder.getRate(), speeds.leftMetersPerSecond);
     final double rightOutput =
-        righController.calculate(m_rightEncoder.getRate(), speeds.rightMetersPerSecond);
-    final VoltageOut leftvoltage = new VoltageOut(leftOutput + leftFeedforward);
-    final VoltageOut righVoltage = new VoltageOut(rightOutput + rightFeedforward);
+      righController.calculate(m_rightEncoder.getRate(), speeds.rightMetersPerSecond);
+      
+    final VoltageOut leftvoltage = new VoltageOut((leftOutput + leftFeedforward));
+    final VoltageOut righVoltage = new VoltageOut((rightOutput + rightFeedforward));
     m_leftLeader.setControl(leftvoltage);
     m_rightLeader.setControl(righVoltage);
+    
     //m_leftLeader.setVoltage(leftOutput + leftFeedforward);
     //m_rightLeader.setVoltage(rightOutput + rightFeedforward);
   }
